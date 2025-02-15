@@ -157,7 +157,7 @@
                 <a href="#">Dashboard</a>
             </div>
             <div>
-                <span>Welcome, <span id="loggedInUser"></span>!</span>
+                <span>Welcome, <span id="loggedInUser "></span>!</span>
                 <button onclick="logout()">Logout</button>
             </div>
         </header>
@@ -188,7 +188,7 @@
 
         <!-- Footer -->
         <footer>
-            <p>&copy; 2025 Book Management System. Follow me on <a href="https://github.com/JovanStefanus" target="_blank">GitHub</a>.</p>
+            <p>&copy; 2025 Book Management System. Follow me on <a href="https://github.com/yourusername" target="_blank">GitHub</a>.</p>
         </footer>
 
         <!-- Add/Edit Book Form (Hidden by Default) -->
@@ -213,24 +213,22 @@
     </div>
 
     <script>
-        let users = JSON.parse(localStorage.getItem('users')) || [];
-        let books = JSON.parse(localStorage.getItem('books')) || [];
-        let currentUser = JSON.parse(localStorage.getItem('currentUser'));
-
+        let currentUser  = null;
+    
         // Show Login Section
         function showLogin() {
             document.getElementById('loginSection').classList.remove('hidden');
             document.getElementById('registerSection').classList.add('hidden');
             document.getElementById('dashboardSection').classList.add('hidden');
         }
-
+    
         // Show Register Section
         function showRegister() {
             document.getElementById('registerSection').classList.remove('hidden');
             document.getElementById('loginSection').classList.add('hidden');
             document.getElementById('dashboardSection').classList.add('hidden');
         }
-
+    
         // Show Dashboard Section
         function showDashboard() {
             document.getElementById('dashboardSection').classList.remove('hidden');
@@ -238,69 +236,73 @@
             document.getElementById('registerSection').classList.add('hidden');
             updateBooksTable();
         }
-
+    
         // Login Function
         document.getElementById('loginForm').addEventListener('submit', function(event) {
             event.preventDefault();
             const username = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
-            const user = users.find(u => u.username === username && u.password === password);
-            if (user) {
-                currentUser = user;
-                localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                document.getElementById('loggedInUser').textContent = user.username;
-                showDashboard();
-            } else {
-                document.getElementById('loginError').textContent = 'Invalid username or password.';
-            }
+    
+            fetch('login.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    username: username,
+                    password: password
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentUser  = { id: data.user_id, username: username };
+                    document.getElementById('loggedInUser ').textContent = username;
+                    showDashboard();
+                } else {
+                    document.getElementById('loginError').textContent = data.message;
+                }
+            });
         });
-
-        // Register Function with Validation
+    
+        // Register Function
         document.getElementById('registerForm').addEventListener('submit', function(event) {
             event.preventDefault();
             const username = document.getElementById('registerUsername').value.trim();
             const password = document.getElementById('registerPassword').value.trim();
 
-            // Reset pesan error
-            document.getElementById('registerError').textContent = '';
-
-            // Validasi Username
-            if (!username) {
-                document.getElementById('registerError').textContent = 'Username tidak boleh kosong.';
-                return;
-            }
-
-            // Cek apakah username sudah ada
-            if (users.some(u => u.username === username)) {
-                document.getElementById('registerError').textContent = 'Username sudah digunakan.';
-                return;
-            }
-
-            // Validasi Password
-            if (!password) {
-                document.getElementById('registerError').textContent = 'Password tidak boleh kosong.';
-                return;
-            }
-
-            if (password.length < 8) {
-                document.getElementById('registerError').textContent = 'Password minimal 8 karakter.';
-                return;
-            }
-
-            // Jika semua validasi berhasil, tambahkan user baru
-            const user = { id: users.length + 1, username, password };
-            users.push(user);
-            localStorage.setItem('users', JSON.stringify(users));
-            showLogin();
+            fetch('register.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    username: username,
+                    password: password
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showLogin();
+                } else {
+                    // Display validation errors
+                    const errorMessages = data.errors || [data.message];
+                    document.getElementById('registerError').textContent = errorMessages.join(', ');
+                }
+            });
         });
-
+    
         // Logout Function
         function logout() {
-            localStorage.removeItem('currentUser');
-            currentUser = null;
-            showLogin();
+            fetch('logout.php', {
+                method: 'POST'
+            }).then(() => {
+                currentUser  = null;
+                showLogin();
+            });
         }
-
+    
         // Open Add Book Form
         function openAddBookForm() {
             document.getElementById('bookFormModal').classList.remove('hidden');
@@ -308,12 +310,12 @@
             document.getElementById('bookForm').reset();
             document.getElementById('bookId').value = '';
         }
-
+    
         // Close Add Book Form
         function closeAddBookForm() {
             document.getElementById('bookFormModal').classList.add('hidden');
         }
-
+    
         // Save Book (Add/Edit)
         document.getElementById('bookForm').addEventListener('submit', function(event) {
             event.preventDefault();
@@ -324,92 +326,111 @@
             const publisher = document.getElementById('bookPublisher').value;
             const pages = document.getElementById('bookPages').value;
 
-            if (id) {
-                // Edit existing book
-                const book = books.find(b => b.id == id);
-                book.title = title;
-                book.photo = photo;
-                book.author = author;
-                book.publisher = publisher;
-                book.pages = pages;
-            } else {
-                // Add new book
-                const book = {
-                    id: books.length + 1,
-                    title,
-                    photo,
-                    author,
-                    publisher,
-                    pages,
-                    userId: currentUser.id
-                };
-                books.push(book);
-            }
-            localStorage.setItem('books', JSON.stringify(books));
-            updateBooksTable();
-            closeAddBookForm();
-        });
-
-        // Edit Book
-        function editBook(id) {
-            const book = books.find(b => b.id == id);
-            document.getElementById('bookId').value = book.id;
-            document.getElementById('bookTitle').value = book.title;
-            document.getElementById('bookPhoto').value = book.photo;
-            document.getElementById('bookAuthor').value = book.author;
-            document.getElementById('bookPublisher').value = book.publisher;
-            document.getElementById('bookPages').value = book.pages;
-            document.getElementById('formTitle').textContent = 'Edit Book';
-            document.getElementById('bookFormModal').classList.remove('hidden');
-        }
-
-        // Delete Book with Confirmation
-        function deleteBook(id) {
-            const isConfirmed = confirm("Are you sure you want to delete this book?");
-            if (isConfirmed) {
-                try {
-                    books = books.filter(b => b.id != id);
-                    localStorage.setItem('books', JSON.stringify(books));
+            fetch('books.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    title: title,
+                    photo: photo,
+                    author: author,
+                    publisher: publisher,
+                    pages: pages,
+                    bookId: id // Include the book ID for updates
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
                     updateBooksTable();
-                    alert("Book deleted successfully!");
-                } catch (error) {
-                    alert("An error occurred while deleting the book: " + error.message);
+                    closeAddBookForm();
+                } else {
+                    alert(data.message);
                 }
-            }
-        }
-
+            });
+        });
+    
         // Update Books Table
         function updateBooksTable() {
             const tbody = document.querySelector('#booksTable tbody');
             tbody.innerHTML = '';
-            books.filter(b => b.userId === currentUser.id).forEach(book => {
-                const row = `
-                    <tr>
-                        <td>${book.id}</td>
-                        <td><img src="${book.photo || 'https://via.placeholder.com/100'}" alt="Book Photo"></td>
-                        <td>${book.title}</td>
-                        <td>${book.author}</td>
-                        <td>${book.publisher}</td>
-                        <td>${book.pages}</td>
-                        <td class="actions">
-                            <button class="view" onclick="viewBook(${book.id})">View</button>
-                            <button class="edit" onclick="editBook(${book.id})">Edit</button>
-                            <button class="delete" onclick="deleteBook(${book.id})">Delete</button>
-                        </td>
-                    </tr>
-                `;
-                tbody.innerHTML += row;
-            });
+            fetch('books.php')
+                .then(response => response.json())
+                .then(books => {
+                    books.forEach(book => {
+                        const row = `
+                            <tr>
+                                <td>${book.id}</td>
+                                <td><img src="${book.photo || 'https://via.placeholder.com/100'}" alt="Book Photo"></td>
+                                <td>${book.title}</td>
+                                <td>${book.author}</td>
+                                <td>${book.publisher}</td>
+                                <td>${book.pages}</td>
+                                <td class="actions">
+                                    <button class="view" onclick="viewBook(${book.id})">View</button>
+                                    <button class="edit" onclick="editBook(${book.id})">Edit</button>
+                                    <button class="delete" onclick="deleteBook(${book.id})">Delete</button>
+                                </td>
+                            </tr>
+                        `;
+                        tbody.innerHTML += row;
+                    });
+                });
         }
-
-        // View Book (Optional)
+    
+        // View Book Details
         function viewBook(id) {
-            const book = books.find(b => b.id == id);
-            alert(`Title: ${book.title}\nAuthor: ${book.author}\nPublisher: ${book.publisher}\nPages: ${book.pages}`);
+            fetch(`books.php?id=${id}`)
+                .then(response => response.json())
+                .then(book => {
+                    if (book) {
+                        alert(`Title: ${book.title}\nAuthor: ${book.author}\nPublisher: ${book.publisher}\nPages: ${book.pages}`);
+                    } else {
+                        alert('Book not found.');
+                    }
+                });
         }
-
+    
+        // Edit Book
+        function editBook(id) {
+            fetch(`books.php?id=${id}`)
+                .then(response => response.json())
+                .then(book => {
+                    if (book) {
+                        document.getElementById('bookId').value = book.id;
+                        document.getElementById('bookTitle').value = book.title;
+                        document.getElementById('bookPhoto').value = book.photo;
+                        document.getElementById('bookAuthor').value = book.author;
+                        document.getElementById('bookPublisher').value = book.publisher;
+                        document.getElementById('bookPages').value = book.pages;
+                        document.getElementById('formTitle').textContent = 'Edit Book';
+                        document.getElementById('bookFormModal').classList.remove('hidden');
+                    }
+                });
+        }
+    
+        // Delete Book with Confirmation
+        function deleteBook(id) {
+            const isConfirmed = confirm("Are you sure you want to delete this book?");
+            if (isConfirmed) {
+                fetch(`books.php?id=${id}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateBooksTable();
+                        alert("Book deleted successfully!");
+                    } else {
+                        alert(data.message);
+                    }
+                });
+            }
+        }
+    
         // Initial Load
-        if (currentUser) {
+        if (currentUser ) {
             showDashboard();
         } else {
             showLogin();
